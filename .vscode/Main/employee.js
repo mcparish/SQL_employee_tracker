@@ -163,17 +163,7 @@ async function addEmployee() {
             message: 'What role does this employee hold?',
             // choices: await getRoleChoices()
         },
-        // {
-        //     type: 'input',
-        //     name: 'manager_id',
-        //     message: 'If this employee is a manager, enter their ID. Otherwise, leave blank.',
-        //     validate: value => {
-        //         if (value === '' || !isNaN(parseInt(value))) {
-        //             return true;
-        //         }
-        //         return 'Please enter a valid ID or leave blank.';
-        //     }
-        // }
+        
     ]);
     try {
         const result = await pool.query('INSERT INTO employee (first_name, last_name, role_id) VALUES ($1, $2, $3) RETURNING *', [response.first_name, response.last_name, response.role_id]);
@@ -189,11 +179,6 @@ async function getDepartmentChoices() {
     const result = await pool.query('SELECT id, name FROM department');
     return result.rows.map(dept => ({ name: dept.name, value: dept.id }));
 }
-
-// async function getRoleChoices() {
-//     const result = await pool.query('SELECT id, name FROM role');
-//     return result.rows.map(role => ({ name: role.name, value: role.id }));
-// }
 
 async function updateEmployee() {
     const response = await inquirer.prompt([
@@ -255,25 +240,10 @@ async function updateEmployee() {
 
     promptUser();
 }
-
-
-    // Update the employee in the database based on the selected attribute
-    // const { employee_id, attribute, newValue } = response;
-
-    // Assuming you have a function to update employee details in your database
-    // await pool.updateEmployee(employee_id, attribute, newValue);
-
-    // console.log(`Updated ${attribute} for employee ID ${employee_id} to ${newValue}`);
-
     async function getEmployeeChoices() {
         const result = await pool.query('SELECT id, first_name, last_name FROM employee');
         return result.rows.map(employee => ({ name: `${employee.first_name} ${employee.last_name}`, value: employee.id }));
     }
-
-    // const result = await pool.query('SELECT id, first_name, last_name FROM employee');
-    // console.table(result.rows);
-
-
 
 async function getDepartmentChoices() {
     const result = await pool.query('SELECT id, name FROM department');
