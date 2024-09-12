@@ -12,54 +12,58 @@ const pool = new Pool({
 
 pool.connect();
 
-const promptUser = () => {
-    return inquirer.prompt([
-        {
-            type: 'list',
-            name: 'action',
-            message: 'What would you like to do?',
-            choices: [
-                'View all departments',
-                'View all roles',
-                'View all employees',
-                'Add a department',
-                'Add a role',
-                'Add an employee',
-                'Update an employee',
-                'Exit'
-            ]
-        }
-    ])
-        .then(response => {
-            switch (response.action) {
-                case 'View all departments':
-                    viewAllDepartments();
-                    break;
-                case 'View all roles':
-                    viewAllRoles();
-                    break;
-                case 'View all employees':
-                    viewAllEmployees();
-                    break;
-                case 'Add a department':
-                    addDepartment();
-                    break;
-                case 'Add a role':
-                    addRole();
-                    break;
-                case 'Add an employee':
-                    addEmployee();
-                    break;
-                case 'Update an employee':
-                    updateEmployee();
-                    break;
-                case 'Exit':
-                    console.log('Goodbye!');
-                    process.exit(0);
-                    break;
+const promptUser = async () => {
+    try {
+        const response = await inquirer.prompt([
+            {
+                type: 'list',
+                name: 'action',
+                message: 'What would you like to do?',
+                choices: [
+                    'View all departments',
+                    'View all roles',
+                    'View all employees',
+                    'Add a department',
+                    'Add a role',
+                    'Add an employee',
+                    'Update an employee',
+                    'Exit'
+                ]
             }
-        });
+        ]);
+
+        switch (response.action) {
+            case 'View all departments':
+                await viewAllDepartments();
+                break;
+            case 'View all roles':
+                await viewAllRoles();
+                break;
+            case 'View all employees':
+                await viewAllEmployees();
+                break;
+            case 'Add a department':
+                await addDepartment();
+                break;
+            case 'Add a role':
+                await addRole();
+                break;
+            case 'Add an employee':
+                await addEmployee();
+                break;
+            case 'Update an employee':
+                await updateEmployee();
+                break;
+            case 'Exit':
+                console.log('Goodbye!');
+                process.exit(0);
+                break;
+        }
+    } catch (error) {
+        console.error(`Error in prompt: ${error.message}`);
+    }
 };
+
 
 async function viewAllDepartments() {
     try {
@@ -117,7 +121,12 @@ async function addRole() {
         {
             type: 'input',
             name: 'name',
-            message: 'What is the name of the role?'
+            message: 'What is the title of the role?'
+        },
+        {
+            type: 'input',
+            name: 'salary',
+            message: 'What is the salary for this role?'
         },
         {
             type: 'list',
@@ -127,7 +136,7 @@ async function addRole() {
         }
     ]);
     try {
-        const result = await pool.query('INSERT INTO role (name, department_id) VALUES ($1, $2) RETURNING *', [response.name, response.department_id]);
+        const result = await pool.query('INSERT INTO role (title, salary, department_id) VALUES ($1, $2, $3) RETURNING *', [response.name, response.salary, response.department_id]);
         console.table(result.rows);
         promptUser();
     } catch (error) {
@@ -149,25 +158,25 @@ async function addEmployee() {
             message: 'What is the employee\'s last name?'
         },
         {
-            type: 'list',
+            type: 'input',
             name: 'role_id',
             message: 'What role does this employee hold?',
-            choices: await getRoleChoices()
+            // choices: await getRoleChoices()
         },
-        {
-            type: 'input',
-            name: 'manager_id',
-            message: 'If this employee is a manager, enter their ID. Otherwise, leave blank.',
-            validate: value => {
-                if (value === '' || !isNaN(parseInt(value))) {
-                    return true;
-                }
-                return 'Please enter a valid ID or leave blank.';
-            }
-        }
+        // {
+        //     type: 'input',
+        //     name: 'manager_id',
+        //     message: 'If this employee is a manager, enter their ID. Otherwise, leave blank.',
+        //     validate: value => {
+        //         if (value === '' || !isNaN(parseInt(value))) {
+        //             return true;
+        //         }
+        //         return 'Please enter a valid ID or leave blank.';
+        //     }
+        // }
     ]);
     try {
-        const result = await pool.query('INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES ($1, $2, $3, $4) RETURNING *', [response.first_name, response.last_name, response.role_id, response.manager_id]);
+        const result = await pool.query('INSERT INTO employee (first_name, last_name, role_id) VALUES ($1, $2, $3) RETURNING *', [response.first_name, response.last_name, response.role_id]);
         console.table(result.rows);
         promptUser();
     } catch (error) {
@@ -176,18 +185,100 @@ async function addEmployee() {
     }
 }
 
-async function updateEmployee() {
-    // Add logic to select an employee and update their details
+async function getDepartmentChoices() {
+    const result = await pool.query('SELECT id, name FROM department');
+    return result.rows.map(dept => ({ name: dept.name, value: dept.id }));
 }
+
+// async function getRoleChoices() {
+//     const result = await pool.query('SELECT id, name FROM role');
+//     return result.rows.map(role => ({ name: role.name, value: role.id }));
+// }
+
+async function updateEmployee() {
+    const response = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'employee_id',
+            message: 'Which employee would you like to update?',
+            choices: await getEmployeeChoices()
+        },
+        {
+            type: 'list',
+            name: 'attribute',
+            message: 'What attribute would you like to update?',
+            choices: [
+                'First name',
+                'Last name',
+                'Role',
+                'Salary'
+            ]
+        },
+        {
+            type: 'input',
+            name: 'newValue',
+            message: 'What is the new value?'
+        }
+    ]);
+
+    const { employee_id, attribute, newValue } = response;
+    let query = '';
+    let values = [];
+
+    // Constructing the appropriate SQL query based on the attribute to update
+    switch (attribute) {
+        case 'First name':
+            query = 'UPDATE employee SET first_name = $1 WHERE id = $2';
+            values = [newValue, employee_id];
+            break;
+        case 'Last name':
+            query = 'UPDATE employee SET last_name = $1 WHERE id = $2';
+            values = [newValue, employee_id];
+            break;
+        case 'Role':
+            query = 'UPDATE employee SET role_id = $1 WHERE id = $2';
+            values = [newValue, employee_id];
+            break;
+        case 'Salary':
+            // Assuming the salary is part of the role table, and you want to update the role associated with the employee
+            query = 'UPDATE role SET salary = $1 WHERE id = (SELECT role_id FROM employee WHERE id = $2)';
+            values = [newValue, employee_id];
+            break;
+    }
+
+    try {
+        await pool.query(query, values);
+        console.log(`Updated ${attribute} for employee ID ${employee_id} to ${newValue}`);
+    } catch (error) {
+        console.error(`Error updating employee: ${error.message}`);
+    }
+
+    promptUser();
+}
+
+
+    // Update the employee in the database based on the selected attribute
+    // const { employee_id, attribute, newValue } = response;
+
+    // Assuming you have a function to update employee details in your database
+    // await pool.updateEmployee(employee_id, attribute, newValue);
+
+    // console.log(`Updated ${attribute} for employee ID ${employee_id} to ${newValue}`);
+
+    async function getEmployeeChoices() {
+        const result = await pool.query('SELECT id, first_name, last_name FROM employee');
+        return result.rows.map(employee => ({ name: `${employee.first_name} ${employee.last_name}`, value: employee.id }));
+    }
+
+    // const result = await pool.query('SELECT id, first_name, last_name FROM employee');
+    // console.table(result.rows);
+
+
 
 async function getDepartmentChoices() {
     const result = await pool.query('SELECT id, name FROM department');
     return result.rows.map(dept => ({ name: dept.name, value: dept.id }));
 }
 
-async function getRoleChoices() {
-    const result = await pool.query('SELECT id, name FROM role');
-    return result.rows.map(role => ({ name: role.name, value: role.id }));
-}
 
 promptUser();
